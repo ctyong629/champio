@@ -1,5 +1,6 @@
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback, memo } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'; // 引入路由套件
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { AppProvider } from '@/contexts/AppContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Navbar } from '@/components/Navbar';
@@ -12,21 +13,46 @@ import { PublicEventPage } from '@/pages/PublicEventPage';
 import { ScorekeeperApp } from '@/pages/ScorekeeperApp';
 import { MemberCenter } from '@/pages/MemberCenter';
 import { NotFound } from '@/pages/NotFound';
+import { LoginPage } from '@/pages/LoginPage';
 import { useSearchShortcut } from '@/hooks/useKeyboard';
+import { Loader2 } from 'lucide-react';
 import './App.css';
-import type { UserRole, SportType } from '@/types';
+import type { SportType } from '@/types'; 
+
+// ============================================
+// Protected Route Component (路由守衛)
+// ============================================
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { currentUser, isLoading } = useAuth();
+
+  // 登入狀態讀取中顯示橘色旋轉圖示
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  // 未登入則導向登入頁
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 // ============================================
 // Main App Component
 // ============================================
 
-export type RouteType = 'home' | 'wizard' | 'dashboard' | 'member' | 'public_event' | 'scorekeeper' | 'not_found';
+export type RouteType = 'home' | 'wizard' | 'dashboard' | 'member' | 'public_event' | 'scorekeeper' | 'not_found' | 'login';
 
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 根據當前的 URL 路徑，反推對應的 RouteType (為了相容 Navbar 和 PageTransition)
+  // 根據路徑獲取當前路由型別
   const getRouteFromPath = (): RouteType => {
     const path = location.pathname;
     if (path === '/') return 'home';
@@ -35,13 +61,13 @@ function AppContent() {
     if (path === '/member') return 'member';
     if (path === '/event') return 'public_event';
     if (path === '/scorekeeper') return 'scorekeeper';
+    if (path === '/login') return 'login';
     return 'not_found';
   };
 
   const route = getRouteFromPath();
   
-  // 建立一個假的 setRoute 來相容你原本寫好的子元件
-  // 這樣底下頁面的按鈕按下去時，就會觸發真實的 URL 跳轉！
+  // 統一跳轉函式
   const setRoute = useCallback((newRoute: RouteType) => {
     const paths: Record<RouteType, string> = {
       home: '/',
@@ -51,28 +77,23 @@ function AppContent() {
       public_event: '/event',
       scorekeeper: '/scorekeeper',
       not_found: '/404',
+      login: '/login', 
     };
     navigate(paths[newRoute] || '/404');
   }, [navigate]);
 
-  // Role state
-  const [role, setRole] = useState<UserRole>('viewer');
-  
-  // Active sport filter
   const [activeSport, setActiveSport] = useState<SportType>('basketball');
-  
-  // Search modal state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Keyboard shortcut: Ctrl/Cmd + K to open search
+  // 快捷鍵啟動搜尋功能
   useSearchShortcut(() => setIsSearchOpen(true));
 
-  // Scroll to top on route change
+  // 網址變動時自動捲動至頂部
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [location.pathname]); // 改為監聽 pathname 變化
+  }, [location.pathname]);
 
-  // Set document title based on route
+  // 動態設置網頁標題
   useEffect(() => {
     const titles: Record<RouteType, string> = {
       home: 'Champio — 專業運動賽事管理平台',
@@ -82,11 +103,12 @@ function AppContent() {
       public_event: '2026 全國春季盃籃球聯賽 — Champio',
       scorekeeper: '記錄台 — Champio',
       not_found: '頁面不存在 — Champio',
+      login: '登入 — Champio', 
     };
     document.title = titles[route] || 'Champio';
   }, [route]);
 
-  // Handle search result selection
+  // 處理搜尋選中邏輯
   const handleSearchSelect = useCallback((_type: string, _id: number) => {
     switch (_type) {
       case 'event':
@@ -103,20 +125,16 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-100 selection:bg-orange-500/30">
-      {/* Google Fonts */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
         .font-sans { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
         .font-display { font-family: 'Bebas Neue', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.05em; }
       `}</style>
 
-      {/* Navbar - hidden in scorekeeper mode */}
+      {/* 導覽列：記錄台模式不顯示 */}
       {route !== 'scorekeeper' && (
         <Navbar 
-          route={route}
           setRoute={setRoute}
-          role={role}
-          setRole={setRole}
           activeSport={activeSport}
           setActiveSport={setActiveSport}
           isSearchOpen={isSearchOpen}
@@ -125,16 +143,30 @@ function AppContent() {
         />
       )}
 
-      {/* Main content with page transitions and React Router Routes */}
       <main>
         <PageTransition route={route}>
           <Routes>
-            <Route path="/" element={<LandingPage setRoute={setRoute} role={role} />} />
-            <Route path="/wizard" element={<EventWizard setRoute={setRoute} />} />
-            <Route path="/dashboard" element={<Dashboard setRoute={setRoute} />} />
-            <Route path="/member" element={<MemberCenter setRoute={setRoute} role={role} />} />
-            <Route path="/event" element={<PublicEventPage setRoute={setRoute} role={role} />} />
+            {/* 首頁：傳入 activeSport 供列表篩選 */}
+            <Route path="/" element={<LandingPage setRoute={setRoute} activeSport={activeSport} />} />
+            
+            <Route 
+              path="/wizard" 
+              element={<ProtectedRoute><EventWizard setRoute={setRoute} /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/dashboard" 
+              element={<ProtectedRoute><Dashboard setRoute={setRoute} /></ProtectedRoute>} 
+            />
+            
+            {/* 🌟 修正點：移除已不再需要的 role 屬性傳遞，由組件內部透過 useAuth 獲取 */}
+            <Route 
+              path="/member" 
+              element={<ProtectedRoute><MemberCenter setRoute={setRoute} /></ProtectedRoute>} 
+            />
+            
+            <Route path="/event" element={<PublicEventPage setRoute={setRoute} />} />
             <Route path="/scorekeeper" element={<ScorekeeperApp setRoute={setRoute} />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="*" element={<NotFound setRoute={setRoute} />} />
           </Routes>
         </PageTransition>
@@ -143,14 +175,15 @@ function AppContent() {
   );
 }
 
-// Wrap with providers
 function App() {
   return (
     <ToastProvider>
       <ThemeProvider defaultTheme="dark">
-        <AppProvider>
-          <AppContent />
-        </AppProvider>
+        <AuthProvider>
+          <AppProvider>
+            <AppContent />
+          </AppProvider>
+        </AuthProvider>
       </ThemeProvider>
     </ToastProvider>
   );

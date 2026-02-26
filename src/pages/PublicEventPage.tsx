@@ -1,62 +1,187 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Trophy, Calendar, MapPin, MonitorSmartphone
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, MapPin, Loader2, Users, Trophy, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Footer } from '@/components/Footer';
 import { useToast } from '@/hooks/useToast';
 import { FadeIn } from '@/components/PageTransition';
-
-const MOCK_ANNOUNCEMENTS = [
-  { id: 1, title: '賽程表已正式公佈，請各隊伍查閱', date: '2026-04-01', pinned: true, status: '已發布' },
-  { id: 2, title: '報名期限延長至 4/10', date: '2026-03-25', pinned: false, status: '已發布' },
-  { id: 3, title: '裁判會議紀錄', date: '2026-03-20', pinned: false, status: '草稿' },
-];
-
+import { useAuth } from '@/contexts/AuthContext';
 import type { RouteType } from '@/App';
+
+// 引入 Firebase 相關功能
+import { collection, query, orderBy, limit, getDocs, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface PublicEventPageProps {
   setRoute: (route: RouteType) => void;
-  role: string;
 }
 
-export function PublicEventPage({ setRoute, role }: PublicEventPageProps) {
+export function PublicEventPage({ setRoute }: PublicEventPageProps) {
   const [tab, setTab] = useState('info');
   const { addToast } = useToast();
+  
+  // 取得 currentUser 與 userRole
+  const { currentUser, userRole } = useAuth(); 
+  
+  // 真實賽事資料狀態
+  const [event, setEvent] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleRegister = () => {
-    addToast({
-      title: '開始報名',
-      description: '正在導向報名表單...',
-      variant: 'default'
-    });
+  // 報名 Modal 相關狀態
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [myTeams, setMyTeams] = useState<any[]>([]);
+  const [isLoadingTeams, setIsLoadingTeams] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchEvent = async () => {
+      try {
+        const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setEvent({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        }
+      } catch (error) {
+        console.error("抓取賽事失敗:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchEvent();
+  }, []);
+
+  // 防呆預設資料
+  const displayEvent = event || {
+    id: 'mock-event-id',
+    name: '2026 全國春季盃籃球聯賽',
+    sport: '籃球',
+    startDate: '2026-04-15',
+    endDate: '2026-04-30',
+    location: '台北市立體育館',
+    organizer: '中華籃球協會',
+    organizerId: 'mock-organizer-id', 
+    description: '此為範例賽事。',
+    bannerImage: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=2090&auto=format&fit=crop',
+    maxTeams: 16,
+    teamsRegistered: 0,
+    registrationFee: 3000,
+    requirePayment: true,
+    registrationDeadline: '2026-04-10'
   };
+
+  // 處理數值
+  const registered = displayEvent.teamsRegistered || 0;
+  const max = displayEvent.maxTeams || 16;
+  const progress = Math.round((registered / max) * 100) || 0;
+
+  // 🌟 動態判斷按鈕狀態與文字
+  const isOrganizerRole = userRole === 'organizer' || userRole === 'admin';
+  const isMyEvent = currentUser && displayEvent.organizerId === currentUser.uid;
+  const isFull = registered >= max;
+
+  let buttonText = '立即報名';
+  let isButtonDisabled = false;
+
+  if (isMyEvent) {
+    buttonText = '這是您主辦的賽事';
+    isButtonDisabled = true;
+  } else if (isOrganizerRole) {
+    buttonText = '您是主辦方 (無法報名)';
+    isButtonDisabled = true;
+  } else if (isFull) {
+    buttonText = '報名已額滿';
+    isButtonDisabled = true;
+  }
+
+  // 開啟報名 Modal (還是保留防護網以防萬一)
+  const handleOpenRegistrationModal = async () => {
+    if (!currentUser) {
+      addToast({ title: '請先登入', description: '您需要登入並建立隊伍才能報名賽事', variant: 'error' });
+      return;
+    }
+
+    if (isButtonDisabled) return; // 如果按鈕被禁用，直接擋掉
+
+    setIsModalOpen(true);
+    setIsLoadingTeams(true);
+
+    try {
+      const q = query(collection(db, 'teams'), where('captainId', '==', currentUser.uid));
+      const snap = await getDocs(q);
+      const fetchedTeams = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMyTeams(fetchedTeams);
+      
+      if (fetchedTeams.length > 0) {
+        setSelectedTeamId(fetchedTeams[0].id);
+      }
+    } catch (error) {
+      console.error('取得隊伍失敗:', error);
+      addToast({ title: '無法取得您的隊伍資料', variant: 'error' });
+    } finally {
+      setIsLoadingTeams(false);
+    }
+  };
+
+  const handleConfirmRegistration = async () => {
+    if (!selectedTeamId || !currentUser || !displayEvent) return;
+    
+    setIsSubmitting(true);
+    try {
+      const selectedTeam = myTeams.find(t => t.id === selectedTeamId);
+      
+      await addDoc(collection(db, 'registrations'), {
+        eventId: displayEvent.id || 'mock-event-id',
+        eventName: displayEvent.name,
+        teamId: selectedTeam.id,
+        teamName: selectedTeam.name,
+        captainId: currentUser.uid,
+        captainEmail: currentUser.email,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      });
+
+      addToast({ title: '報名成功！', description: '已送出報名申請，請靜候主辦方審核。', variant: 'success' });
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('報名失敗:', error);
+      addToast({ title: '報名發生錯誤，請稍後再試', variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 pb-12">
       {/* Event Header Banner */}
       <div className="h-64 bg-slate-900 relative border-b border-orange-500/30 overflow-hidden">
         <motion.div 
-          className="absolute inset-0 bg-cover bg-center opacity-30"
-          style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=2090&auto=format&fit=crop)' }}
-          initial={{ scale: 1.1 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 10, repeat: Infinity, repeatType: 'reverse' }}
+          className="absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ backgroundImage: `url(${displayEvent.bannerImage || 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=2090&auto=format&fit=crop'})` }}
+          initial={{ scale: 1.1 }} animate={{ scale: 1 }} transition={{ duration: 10, repeat: Infinity, repeatType: 'reverse' }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
         <div className="relative max-w-5xl mx-auto px-6 h-full flex flex-col justify-end pb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Badge className="w-fit mb-3 bg-orange-500/20 text-orange-400 border-orange-500/50">籃球</Badge>
-            <h1 className="text-4xl font-extrabold text-white">2026 全國春季盃籃球聯賽</h1>
-            <p className="text-slate-300 mt-2 flex items-center gap-4 flex-wrap">
-              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> 2026-04-15 起</span>
-              <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> 台北市立體育館</span>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Badge className="w-fit mb-3 bg-orange-500/20 text-orange-400 border-orange-500/50">
+              {displayEvent.sport}
+            </Badge>
+            <h1 className="text-4xl font-extrabold text-white drop-shadow-md">{displayEvent.name}</h1>
+            <p className="text-slate-300 mt-2 flex items-center gap-4 flex-wrap drop-shadow">
+              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {displayEvent.startDate} 起</span>
+              <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {displayEvent.location || '地點待定'}</span>
+              <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {displayEvent.organizer}</span>
             </p>
           </motion.div>
         </div>
@@ -64,262 +189,169 @@ export function PublicEventPage({ setRoute, role }: PublicEventPageProps) {
 
       {/* Navigation Tabs */}
       <div className="border-b border-slate-800 sticky top-16 bg-slate-950/80 backdrop-blur z-20">
-        <div className="max-w-5xl mx-auto px-6 flex gap-6">
+        <div className="max-w-5xl mx-auto px-6 flex gap-6 overflow-x-auto">
           {['info:賽事資訊', 'bracket:賽程表', 'teams:參賽隊伍', 'live:即時比分'].map(t => {
             const [id, label] = t.split(':');
             return (
               <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`py-4 font-medium text-sm border-b-2 transition-colors relative ${
+                key={id} onClick={() => setTab(id)}
+                className={`py-4 font-medium text-sm border-b-2 transition-colors relative whitespace-nowrap ${
                   tab === id ? 'border-orange-500 text-orange-400' : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
                 {label}
-                {tab === id && (
-                  <motion.div
-                    layoutId="eventTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500"
-                    initial={false}
-                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                  />
-                )}
+                {tab === id && <motion.div layoutId="eventTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />}
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-6 py-8 relative">
         {tab === 'info' && (
           <FadeIn className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2 space-y-8">
               <section>
-                <h3 className="text-xl font-bold text-white mb-4">最新公告</h3>
-                <div className="space-y-3">
-                  {MOCK_ANNOUNCEMENTS.filter(a => a.status === '已發布').map((a, i) => (
-                    <motion.div
-                      key={a.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                    >
-                      <Card className="p-4 flex flex-col gap-2 bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-2">
-                          {a.pinned && <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/50">置頂</Badge>}
-                          <span className="text-slate-400 text-sm">{a.date}</span>
-                        </div>
-                        <p className="text-white font-medium hover:text-orange-400 transition-colors">{a.title}</p>
-                      </Card>
-                    </motion.div>
-                  ))}
-                </div>
-              </section>
-              <section>
-                 <h3 className="text-xl font-bold text-white mb-4">賽事規章</h3>
+                 <h3 className="text-xl font-bold text-white mb-4">賽事簡介</h3>
                  <Card className="p-6 bg-slate-800 border-slate-700">
-                    <div className="prose prose-invert max-w-none text-slate-300 space-y-3">
-                      <p>一、 宗 旨：推廣籃球運動，提升技術水準...</p>
-                      <p>二、 主辦單位：中華民國XX籃球協會</p>
-                      <p>三、 比賽日期：2026 年 4 月 15 日至 4 月 30 日</p>
-                      <p>四、 比賽地點：台北市立體育館</p>
-                      <p>五、 參加資格：凡熱愛籃球運動者均可組隊參加</p>
-                    </div>
+                    <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {displayEvent.description || '主辦單位尚未提供詳細簡介。'}
+                    </p>
                  </Card>
               </section>
             </div>
+            
+            {/* 🌟 優化過的報名資訊卡片 */}
             <div>
-              <Card className="p-6 space-y-6 sticky top-36 bg-slate-800 border-slate-700">
+              <Card className="p-6 space-y-6 sticky top-36 bg-slate-800 border-slate-700 shadow-xl">
                 <h3 className="text-lg font-bold text-white border-b border-slate-700 pb-2">報名資訊</h3>
+                
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">報名狀態</span>
-                    <span className="text-emerald-400 font-bold">開放報名中</span>
+                    <span className="text-emerald-400 font-bold">{displayEvent.status || '報名中'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">報名截止</span>
-                    <span className="text-white">2026-04-10</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">剩餘名額</span>
-                    <span className="text-orange-400 font-bold">4 / 16 隊</span>
+                    <span className="text-white">{displayEvent.registrationDeadline || '未設定'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">報名費用</span>
-                    <span className="text-white">$3,000/隊</span>
+                    <span className="text-white">
+                      {displayEvent.requirePayment ? `$${displayEvent.registrationFee} / 隊` : '免費'}
+                    </span>
                   </div>
                 </div>
                 
-                {/* Progress bar */}
-                <div className="bg-slate-900 rounded-full h-2 overflow-hidden">
-                  <motion.div 
-                    className="h-full bg-gradient-to-r from-orange-600 to-orange-400"
-                    initial={{ width: 0 }}
-                    animate={{ width: '75%' }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                  />
+                {/* 🌟 報名進度與長條圖 */}
+                <div className="pt-4 border-t border-slate-700/50">
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-sm font-medium text-slate-300">目前報名進度</span>
+                    <span className="text-sm font-bold text-orange-400">{registered} / {max} 隊</span>
+                  </div>
+                  <div className="bg-slate-950 rounded-full h-2.5 overflow-hidden shadow-inner border border-slate-800">
+                    <motion.div 
+                      className="h-full bg-gradient-to-r from-orange-600 to-orange-400"
+                      initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1 }}
+                    />
+                  </div>
+                  {isFull && <p className="text-xs text-red-400 mt-2 text-right">已達隊伍上限</p>}
                 </div>
-                <p className="text-xs text-slate-500 text-center">已報名 12 / 16 隊</p>
                 
-                {/* Register button */}
+                {/* 🌟 動態按鈕：依據身分與滿額狀態變更文字與外觀 */}
                 <Button 
-                  className="w-full py-3 text-lg bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20"
-                  onClick={handleRegister}
+                  className={`w-full py-6 text-lg font-bold transition-all shadow-lg ${
+                    isButtonDisabled 
+                      ? 'bg-slate-700 text-slate-400 cursor-not-allowed hover:bg-slate-700 shadow-none' 
+                      : 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20'
+                  }`}
+                  onClick={handleOpenRegistrationModal}
+                  disabled={isButtonDisabled}
                 >
-                  立即報名
+                  {buttonText}
                 </Button>
               </Card>
             </div>
           </FadeIn>
         )}
 
-        {tab === 'bracket' && (
-          <FadeIn className="space-y-6 text-center py-12">
-            <Trophy className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-white">單敗淘汰賽程表</h3>
-            <p className="text-slate-400">目前賽程已排定，點擊隊伍可查看詳細對戰紀錄。</p>
-            
-            <div className="mt-8 inline-block text-left">
-              <div className="flex min-w-[600px] justify-between text-sm bg-slate-900 p-8 rounded-xl border border-slate-800">
-                  <div className="flex flex-col justify-around h-96 w-48 space-y-4">
-                    <motion.div 
-                      className="bg-slate-800 border border-slate-700 hover:border-orange-500 cursor-pointer rounded p-3 text-white transition-colors relative"
-                      whileHover={{ scale: 1.02 }}
-                    >
-                      <div className="flex justify-between"><span>猛龍隊</span><span className="text-slate-500">-</span></div>
-                      <div className="border-t border-slate-700 my-1"></div>
-                      <div className="flex justify-between text-slate-400"><span>飛鷹隊</span><span>-</span></div>
-                      <div className="absolute top-1/2 -right-6 w-6 h-px bg-slate-700"></div>
-                    </motion.div>
-                    <motion.div 
-                      className="bg-slate-800 border border-slate-700 hover:border-orange-500 cursor-pointer rounded p-3 text-white transition-colors relative"
-                      whileHover={{ scale: 1.02 }}
-                    >
-                      <div className="flex justify-between"><span>閃電俠</span><span className="text-slate-500">-</span></div>
-                      <div className="border-t border-slate-700 my-1"></div>
-                      <div className="flex justify-between text-slate-400"><span>暴風雪</span><span>-</span></div>
-                      <div className="absolute top-1/2 -right-6 w-6 h-px bg-slate-700"></div>
-                    </motion.div>
-                  </div>
-                  
-                  <div className="flex flex-col justify-center h-96 w-48">
-                    <motion.div 
-                      className="bg-slate-800 border-2 border-orange-500 rounded p-3 text-white shadow relative"
-                      whileHover={{ scale: 1.02 }}
-                    >
-                      <div className="absolute top-1/2 -left-6 w-6 h-px bg-slate-700"></div>
-                      <div className="absolute -left-6 top-[25%] h-[50%] w-px bg-slate-700"></div>
-                      <div className="flex justify-between"><span>待定</span><span className="text-orange-500 font-bold">-</span></div>
-                      <div className="border-t border-slate-700 my-1"></div>
-                      <div className="flex justify-between"><span>待定</span><span>-</span></div>
-                    </motion.div>
-                  </div>
-              </div>
-            </div>
-          </FadeIn>
-        )}
-
-        {tab === 'teams' && (
-          <FadeIn className="space-y-6">
-            <h3 className="text-xl font-bold text-white">參賽隊伍 (12/16)</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {['猛龍隊', '飛鷹隊', '閃電俠', '暴風雪', '火焰鳥', '雷霆隊', '海盜隊', '勇士隊', '王者隊', '傳奇隊', '夢幻隊', '明星隊'].map((team, i) => (
-                <motion.div
-                  key={team}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <Card className="p-4 bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-lg">
-                      {team[0]}
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">{team}</p>
-                      <p className="text-xs text-slate-500">已繳費</p>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </FadeIn>
-        )}
-
-        {tab === 'live' && (
-          <FadeIn className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                </span>
-                LIVE 即時比分
-              </h3>
-              {role === 'scorekeeper' && (
-                <Button 
-                  className="bg-red-500 hover:bg-red-600"
-                  onClick={() => setRoute('scorekeeper')}
-                >
-                  進入記錄台介面 <MonitorSmartphone className="w-4 h-4 ml-2" />
-                </Button>
-              )}
-            </div>
-            
-            <Card className="max-w-2xl mx-auto border-orange-500/50 bg-slate-900 overflow-hidden relative shadow-[0_0_30px_rgba(249,115,22,0.1)]">
-              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-orange-500 to-red-500"></div>
-              <div className="p-8 text-center">
-                <Badge className="mb-4 bg-red-500/20 text-red-400 border-red-500/50">第一節 08:42</Badge>
-                <div className="flex justify-between items-center px-4">
-                  <div className="flex flex-col items-center gap-2 w-1/3">
-                    <motion.div 
-                      className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-xl font-bold text-white border border-slate-700"
-                      whileHover={{ scale: 1.1 }}
-                    >
-                      猛
-                    </motion.div>
-                    <span className="text-white font-bold text-lg">猛龍隊</span>
-                  </div>
-                  <div className="w-1/3">
-                    <motion.div 
-                      className="text-5xl font-extrabold text-orange-500 tracking-tighter"
-                      key="score"
-                      initial={{ scale: 1.2 }}
-                      animate={{ scale: 1 }}
-                    >
-                      78<span className="text-slate-600 mx-2 text-3xl">:</span>65
-                    </motion.div>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 w-1/3">
-                    <motion.div 
-                      className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-xl font-bold text-white border border-slate-700"
-                      whileHover={{ scale: 1.1 }}
-                    >
-                      飛
-                    </motion.div>
-                    <span className="text-white font-bold text-lg">飛鷹隊</span>
-                  </div>
-                </div>
-                
-                {/* Game stats */}
-                <div className="mt-8 grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-slate-800 rounded-lg p-3">
-                    <p className="text-slate-400 text-xs">第一節</p>
-                    <p className="text-white font-bold">28-22</p>
-                  </div>
-                  <div className="bg-slate-800 rounded-lg p-3">
-                    <p className="text-slate-400 text-xs">第二節</p>
-                    <p className="text-white font-bold">25-20</p>
-                  </div>
-                  <div className="bg-slate-800 rounded-lg p-3">
-                    <p className="text-slate-400 text-xs">第三節</p>
-                    <p className="text-white font-bold">25-23</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </FadeIn>
-        )}
+        {tab === 'bracket' && <FadeIn><div className="text-center py-20 text-slate-400">賽程表尚未公布</div></FadeIn>}
+        {tab === 'teams' && <FadeIn><div className="text-center py-20 text-slate-400">參賽隊伍尚未公布</div></FadeIn>}
+        {tab === 'live' && <FadeIn><div className="text-center py-20 text-slate-400">比賽尚未開始</div></FadeIn>}
       </div>
+
+      {/* 報名彈出視窗 (Modal) */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-orange-400" />
+                  選擇報名隊伍
+                </h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {isLoadingTeams ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-orange-500 mb-4" />
+                    <p className="text-slate-400">正在讀取您的隊伍...</p>
+                  </div>
+                ) : myTeams.length === 0 ? (
+                  <div className="text-center py-6 bg-slate-950 rounded-lg border border-dashed border-slate-700">
+                    <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                    <p className="text-slate-300 font-medium mb-1">您目前還沒有建立任何隊伍</p>
+                    <p className="text-sm text-slate-500 mb-4">請先前往「會員中心」建立隊伍後再進行報名。</p>
+                    <Button onClick={() => { setIsModalOpen(false); setRoute('member'); }} className="bg-slate-800 text-white hover:bg-slate-700">
+                      前往建立隊伍
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-300">請選擇要代表出賽的隊伍</label>
+                      <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                        <SelectTrigger className="w-full bg-slate-950 border-slate-700 text-white h-12">
+                          <SelectValue placeholder="選擇隊伍" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                          {myTeams.map(team => (
+                            <SelectItem key={team.id} value={team.id} className="focus:bg-slate-700">
+                              {team.name} ({team.sport || '未分類'} - {team.members?.length || 1} 人)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-200 flex gap-2">
+                      <AlertCircle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                      <p>送出報名後，需等待主辦單位審核通過，才算完成報名程序喔！</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 p-4 bg-slate-800/50 border-t border-slate-800">
+                <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="text-slate-300 hover:text-white">取消</Button>
+                <Button 
+                  className="bg-orange-500 hover:bg-orange-600 text-white" 
+                  onClick={handleConfirmRegistration} 
+                  disabled={isSubmitting || myTeams.length === 0}
+                >
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> 送出中...</> : '確認送出'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <Footer />
     </div>

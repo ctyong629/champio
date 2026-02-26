@@ -11,6 +11,12 @@ import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/useToast';
 import type { SportType, ThemeType, TournamentFormat, EventWizardData, RouteType } from '@/types';
 
+// 🌟 引入 Firebase 與 Auth 功能
+import { useAuth } from '@/contexts/AuthContext';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
+
 // ============================================
 // Constants
 // ============================================
@@ -699,7 +705,7 @@ function Step5Preview({ data, onFinish, isSubmitting }: {
               transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
               className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
             />
-            建立中...
+            處理中...
           </>
         ) : (
           <>
@@ -752,7 +758,10 @@ export function EventWizard({ setRoute }: EventWizardProps) {
   const [step, setStep] = useState(1);
   const [data, setData] = useState<EventWizardData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const { addToast } = useToast();
+  // 🌟 取得目前登入的使用者資訊
+  const { currentUser } = useAuth();
 
   const steps = [
     { id: 1, title: '基本資訊', icon: Trophy },
@@ -809,19 +818,59 @@ export function EventWizard({ setRoute }: EventWizardProps) {
     }
   };
 
-  const handleFinish = () => {
+  // 🌟 將賽事資料儲存至 Firestore 的邏輯
+  const handleFinish = async () => {
+    if (!currentUser) {
+      addToast({ title: '請先登入', variant: 'warning' });
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      let bannerUrl = null;
+      
+      // 如果有上傳圖片 (base64格式)，先上傳到 Firebase Storage
+      if (data.bannerImage && data.bannerImage.startsWith('data:image')) {
+        addToast({ title: '正在上傳圖片...', variant: 'info' });
+        const bannerRef = ref(storage, `banners/${currentUser.uid}_${Date.now()}`);
+        await uploadString(bannerRef, data.bannerImage, 'data_url');
+        bannerUrl = await getDownloadURL(bannerRef);
+      }
+
+      // 準備要儲存到資料庫的完整資料
+      const eventDataToSave = {
+        ...data,
+        bannerImage: bannerUrl || data.bannerImage, // 使用雲端網址，如果沒有就存 null
+        organizerId: currentUser.uid,               // 綁定建立者的 ID
+        organizerEmail: currentUser.email,
+        createdAt: serverTimestamp(),               // 記錄建立時間
+        status: '報名中',                           // 預設狀態
+        teamsRegistered: 0,                         // 預設已報名隊伍數為 0
+      };
+
+      // 寫入 Firestore 的 'events' 集合中
+      await addDoc(collection(db, 'events'), eventDataToSave);
+
       addToast({
         title: '賽事建立成功！',
         description: '您的賽事官網已經準備好上線了',
         variant: 'success'
       });
+      
+      // 建立完成後跳轉至主控台 (Dashboard)
       setRoute('dashboard');
-    }, 1500);
+      
+    } catch (error) {
+      console.error("建立賽事失敗:", error);
+      addToast({
+        title: '建立失敗',
+        description: '發生錯誤，請稍後再試',
+        variant: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

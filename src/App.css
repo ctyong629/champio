@@ -52,6 +52,7 @@ html {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2; /* 🌟 新增這行來滿足 VS Code 的標準 */
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

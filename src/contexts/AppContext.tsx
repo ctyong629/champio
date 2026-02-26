@@ -118,7 +118,6 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState, (init) => {
-    // Load from localStorage on init
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -133,7 +132,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return init;
   });
 
-  // Persist to localStorage on state change
   useEffect(() => {
     const toStore = {
       theme: state.theme,
@@ -142,7 +140,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
   }, [state.theme, state.currentUser]);
 
-  // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', state.theme);
   }, [state.theme]);
@@ -170,7 +167,6 @@ export function useAppDispatch(): React.Dispatch<AppAction> {
   return context.dispatch;
 }
 
-// Custom hooks for common operations
 export function useEvents() {
   const { state, dispatch } = useContext(AppContext)!;
   
@@ -188,12 +184,7 @@ export function useEvents() {
     dispatch({ type: 'DELETE_EVENT', payload: id });
   }, [dispatch]);
 
-  return {
-    events: state.events,
-    addEvent,
-    updateEvent,
-    deleteEvent,
-  };
+  return { events: state.events, addEvent, updateEvent, deleteEvent };
 }
 
 export function useTeams() {
@@ -209,11 +200,7 @@ export function useTeams() {
     dispatch({ type: 'UPDATE_TEAM', payload: team });
   }, [dispatch]);
 
-  return {
-    teams: state.teams,
-    addTeam,
-    updateTeam,
-  };
+  return { teams: state.teams, addTeam, updateTeam };
 }
 
 export function useTheme() {
@@ -230,11 +217,7 @@ export function useTheme() {
     dispatch({ type: 'SET_THEME', payload: nextTheme });
   }, [dispatch, state.theme]);
 
-  return {
-    theme: state.theme,
-    setTheme,
-    toggleTheme,
-  };
+  return { theme: state.theme, setTheme, toggleTheme };
 }
 
 export function useSearch() {
@@ -263,9 +246,5 @@ export function useSearch() {
     return results.slice(0, 10);
   }, [state.searchQuery, state.events, state.teams, state.announcements]);
 
-  return {
-    searchQuery: state.searchQuery,
-    setSearchQuery,
-    searchResults: searchResults(),
-  };
+  return { searchQuery: state.searchQuery, setSearchQuery, searchResults: searchResults() };
 }
