@@ -18,6 +18,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // 如果 Firebase 未初始化，直接結束 loading
+    if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+      console.warn('⚠️ Firebase Auth 未初始化，跳過身份驗證監聽');
+      setIsLoading(false);
+      return;
+    }
+
     // 把 callback 加上 async，因為我們要去資料庫抓資料
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
