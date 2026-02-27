@@ -38,7 +38,7 @@ interface NavbarProps {
   setActiveSport: (sport: SportType) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
-  onSearchSelect: (type: string, id: number) => void;
+  onSearchSelect: (type: string, id: string) => void;
 }
 
 // ============================================

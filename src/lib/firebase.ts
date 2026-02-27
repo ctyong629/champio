@@ -4,12 +4,12 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; // 🌟 新增 Storage 模組
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBgcUHw7wBaRk9n-Uk4PoNr4C7AG8VIuxg",
-  authDomain: "champio-325a8.firebaseapp.com",
-  projectId: "champio-325a8",
-  storageBucket: "champio-325a8.firebasestorage.app",
-  messagingSenderId: "250634726028",
-  appId: "1:250634726028:web:507ea35e119a3861c9e9a9"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY, // 🌟 改成這樣
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // 初始化 Firebase

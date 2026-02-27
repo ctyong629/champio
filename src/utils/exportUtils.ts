@@ -64,18 +64,18 @@ export function exportEventSummaryToExcel(
   teams: Team[],
   options: ExportOptions = {}
 ): void {
-  const { filename = `${event.title}_賽事摘要.xlsx` } = options;
+  const { filename = `${event.name}_賽事摘要.xlsx` } = options;
 
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Event Info
   const eventInfo = [{
-    '賽事名稱': event.title,
+    '賽事名稱': event.name,
     '運動項目': event.sport,
     '比賽日期': `${event.startDate} ~ ${event.endDate}`,
     '比賽地點': event.location,
     '主辦單位': event.organizer,
-    '報名隊數': `${event.teams}/${event.maxTeams}`,
+    '報名隊數': `${event.teamsRegistered}/${event.maxTeams}`,
     '報名狀態': event.status,
   }];
   const ws1 = XLSX.utils.json_to_sheet(eventInfo);
@@ -135,7 +135,7 @@ export function exportTeamsToPDF(
   event: Event,
   options: PDFExportOptions = {}
 ): void {
-  const { filename = `${event.title}_秩序冊.pdf` } = options;
+  const { filename = `${event.name}_秩序冊.pdf` } = options;
 
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -143,7 +143,7 @@ export function exportTeamsToPDF(
   // Title
   doc.setFontSize(20);
   doc.setTextColor(249, 115, 22); // Orange
-  doc.text(event.title, pageWidth / 2, 20, { align: 'center' });
+  doc.text(event.name, pageWidth / 2, 20, { align: 'center' });
 
   // Subtitle
   doc.setFontSize(12);
@@ -220,7 +220,7 @@ export function exportBracketToPDF(
   event: Event,
   options: PDFExportOptions = {}
 ): void {
-  const { filename = `${event.title}_賽程表.pdf` } = options;
+  const { filename = `${event.name}_賽程表.pdf` } = options;
 
   const doc = new jsPDF('landscape');
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -228,7 +228,7 @@ export function exportBracketToPDF(
   // Title
   doc.setFontSize(18);
   doc.setTextColor(249, 115, 22);
-  doc.text(`${event.title} - 賽程表`, pageWidth / 2, 15, { align: 'center' });
+  doc.text(`${event.name} - 賽程表`, pageWidth / 2, 15, { align: 'center' });
 
   let startY = 30;
 
@@ -330,13 +330,13 @@ export function exportData(
 ): void {
   switch (format) {
     case 'excel':
-      exportTeamsToExcel(teams, event.title);
+      exportTeamsToExcel(teams, event.name);
       break;
     case 'pdf':
       exportTeamsToPDF(teams, event);
       break;
     case 'csv':
-      exportTeamsToCSV(teams, event.title);
+      exportTeamsToCSV(teams, event.name);
       break;
   }
 }

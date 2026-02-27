@@ -1,3 +1,4 @@
+import { EventDashboard } from './pages/EventDashboard'; 
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback, memo } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { ToastProvider } from '@/hooks/useToast';
 import { PageTransition } from '@/components/PageTransition';
 import { LandingPage } from '@/pages/LandingPage';
 import { EventWizard } from '@/pages/EventWizard';
-import { Dashboard } from '@/pages/Dashboard';
 import { PublicEventPage } from '@/pages/PublicEventPage';
 import { ScorekeeperApp } from '@/pages/ScorekeeperApp';
 import { MemberCenter } from '@/pages/MemberCenter';
@@ -25,7 +25,6 @@ import type { SportType } from '@/types';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading } = useAuth();
 
-  // 登入狀態讀取中顯示橘色旋轉圖示
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -34,7 +33,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // 未登入則導向登入頁
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
@@ -52,7 +50,6 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 根據路徑獲取當前路由型別
   const getRouteFromPath = (): RouteType => {
     const path = location.pathname;
     if (path === '/') return 'home';
@@ -67,7 +64,6 @@ function AppContent() {
 
   const route = getRouteFromPath();
   
-  // 統一跳轉函式
   const setRoute = useCallback((newRoute: RouteType) => {
     const paths: Record<RouteType, string> = {
       home: '/',
@@ -85,15 +81,13 @@ function AppContent() {
   const [activeSport, setActiveSport] = useState<SportType>('basketball');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // 快捷鍵啟動搜尋功能
   useSearchShortcut(() => setIsSearchOpen(true));
 
-  // 網址變動時自動捲動至頂部
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
 
-  // 動態設置網頁標題
+  // 🌟 修正後的動態標題邏輯
   useEffect(() => {
     const titles: Record<RouteType, string> = {
       home: 'Champio — 專業運動賽事管理平台',
@@ -105,11 +99,10 @@ function AppContent() {
       not_found: '頁面不存在 — Champio',
       login: '登入 — Champio', 
     };
-    document.title = titles[route] || 'Champio';
+    document.title = titles[route] || 'Champio | 讓賽事管理變得簡單';
   }, [route]);
 
-  // 處理搜尋選中邏輯
-  const handleSearchSelect = useCallback((_type: string, _id: number) => {
+  const handleSearchSelect = useCallback((_type: string, _id: string | number) => {
     switch (_type) {
       case 'event':
         setRoute('public_event');
@@ -131,8 +124,7 @@ function AppContent() {
         .font-display { font-family: 'Bebas Neue', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.05em; }
       `}</style>
 
-      {/* 導覽列：記錄台模式不顯示 */}
-      {route !== 'scorekeeper' && (
+      {route !== 'scorekeeper' && route !== 'dashboard' && (
         <Navbar 
           setRoute={setRoute}
           activeSport={activeSport}
@@ -146,24 +138,10 @@ function AppContent() {
       <main>
         <PageTransition route={route}>
           <Routes>
-            {/* 首頁：傳入 activeSport 供列表篩選 */}
             <Route path="/" element={<LandingPage setRoute={setRoute} activeSport={activeSport} />} />
-            
-            <Route 
-              path="/wizard" 
-              element={<ProtectedRoute><EventWizard setRoute={setRoute} /></ProtectedRoute>} 
-            />
-            <Route 
-              path="/dashboard" 
-              element={<ProtectedRoute><Dashboard setRoute={setRoute} /></ProtectedRoute>} 
-            />
-            
-            {/* 🌟 修正點：移除已不再需要的 role 屬性傳遞，由組件內部透過 useAuth 獲取 */}
-            <Route 
-              path="/member" 
-              element={<ProtectedRoute><MemberCenter setRoute={setRoute} /></ProtectedRoute>} 
-            />
-            
+            <Route path="/wizard" element={<ProtectedRoute><EventWizard setRoute={setRoute} /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><EventDashboard setRoute={setRoute} /></ProtectedRoute>} />
+            <Route path="/member" element={<ProtectedRoute><MemberCenter setRoute={setRoute} /></ProtectedRoute>} />
             <Route path="/event" element={<PublicEventPage setRoute={setRoute} />} />
             <Route path="/scorekeeper" element={<ScorekeeperApp setRoute={setRoute} />} />
             <Route path="/login" element={<LoginPage />} />

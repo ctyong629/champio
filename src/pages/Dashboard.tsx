@@ -27,7 +27,7 @@ import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/fire
 import { db } from '@/lib/firebase';
 
 const MOCK_TEAMS: Team[] = [
-  { id: 1, name: '猛龍隊', contact: '王小明', phone: '0912-345-678', email: 'team1@example.com', status: '審核通過', paid: true, registeredAt: '2026-01-15' },
+  { id: '1', name: '猛龍隊', contact: '王小明', phone: '0912-345-678', email: 'team1@example.com', status: '審核通過', paid: true, registeredAt: '2026-01-15' },
 ];
 
 const MOCK_MEDAL_DATA = [

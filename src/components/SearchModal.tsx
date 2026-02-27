@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Trophy, Users, FileText, ArrowRight } from 'lucide-react';
-import { useAppState, useAppDispatch } from '@/contexts/AppContext';
+import { useAppState } from '@/contexts/AppContext';
 import type { Event, Team, Announcement } from '@/types';
 
 interface SearchResult {
@@ -12,7 +12,7 @@ interface SearchResult {
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (type: string, id: number) => void;
+  onSelect: (type: string, id: string) => void;
 }
 
 export function SearchModal({ isOpen, onClose, onSelect }: SearchModalProps) {
@@ -20,7 +20,6 @@ export function SearchModal({ isOpen, onClose, onSelect }: SearchModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const { events, teams, announcements } = useAppState();
-  const dispatch = useAppDispatch();
 
   // Filter results based on query
   const filteredResults: SearchResult[] = useMemo(() => {
@@ -29,7 +28,7 @@ export function SearchModal({ isOpen, onClose, onSelect }: SearchModalProps) {
 
     const eventResults: SearchResult[] = events
       .filter(e => 
-        e.title.toLowerCase().includes(lowerQuery) ||
+        e.name.toLowerCase().includes(lowerQuery) ||
         e.organizer.toLowerCase().includes(lowerQuery) ||
         e.location.toLowerCase().includes(lowerQuery)
       )
@@ -89,10 +88,9 @@ export function SearchModal({ isOpen, onClose, onSelect }: SearchModalProps) {
   }, [isOpen, selectedIndex, filteredResults, onClose]);
 
   const handleSelect = useCallback((result: SearchResult) => {
-    dispatch({ type: 'SET_SEARCH_QUERY', payload: '' });
     onSelect(result.type, result.item.id);
     onClose();
-  }, [dispatch, onClose, onSelect]);
+  }, [onClose, onSelect]);
 
   const getIcon = (type: string) => {
     switch (type) {

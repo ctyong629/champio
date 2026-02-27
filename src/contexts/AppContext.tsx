@@ -10,66 +10,64 @@ const STORAGE_KEY = 'sportify-app-state';
 const initialState: AppState = {
   events: [
     { 
-      id: 1, 
-      title: '2026 全國春季盃籃球聯賽', 
+      id: '1', 
+      name: '2026 全國春季盃籃球聯賽', 
       sport: '籃球', 
-      date: '2026-04-15', 
       startDate: '2026-04-15', 
       endDate: '2026-04-30', 
       location: '台北市立體育館', 
       organizer: '中華籃球協會', 
       status: '報名中', 
-      teams: 12, 
+      teamsRegistered: 12, 
       maxTeams: 16, 
       bannerColor: '#f97316', 
       description: '全國最大型的春季籃球聯賽，廣邀各路好手共襄盛舉。' 
     },
     { 
-      id: 2, 
-      title: '大專院校排球邀請賽', 
+      id: '2', 
+      name: '大專院校排球邀請賽', 
       sport: '排球', 
-      date: '2026-05-20', 
       startDate: '2026-05-20', 
       endDate: '2026-05-25', 
       location: '台灣大學綜合體育館', 
       organizer: '大專體總', 
       status: '進行中', 
-      teams: 8, 
+      teamsRegistered: 8, 
       maxTeams: 8, 
       bannerColor: '#3b82f6', 
       description: '頂尖大專院校排球隊伍齊聚一堂，爭奪年度總冠軍。' 
     },
     { 
-      id: 3, 
-      title: '夏季街頭 3v3 爭霸戰', 
+      id: '3', 
+      name: '夏季街頭 3v3 爭霸戰', 
       sport: '籃球', 
-      date: '2026-06-10', 
       startDate: '2026-06-10', 
       endDate: '2026-06-12', 
       location: '新生高架橋下籃球場', 
       organizer: '街頭籃球聯盟', 
       status: '籌備中', 
-      teams: 0, 
+      teamsRegistered: 0, 
       maxTeams: 32, 
       bannerColor: '#10b981', 
       description: '熱血的街頭 3v3 賽事，隨機分組單敗淘汰，挑戰極限。' 
     },
   ],
   teams: [
-    { id: 1, name: '猛龍隊', contact: '王小明', phone: '0912-345-678', status: '審核通過', paid: true },
-    { id: 2, name: '飛鷹隊', contact: '李大華', phone: '0923-456-789', status: '審核通過', paid: true },
-    { id: 3, name: '閃電俠', contact: '張小龍', phone: '0934-567-890', status: '資料不全', paid: false },
-    { id: 4, name: '暴風雪', contact: '陳小美', phone: '0945-678-901', status: '候補中', paid: false },
-    { id: 5, name: '火焰鳥', contact: '林志強', phone: '0956-789-012', status: '待審核', paid: false },
+    { id: '1', name: '猛龍隊', contact: '王小明', phone: '0912-345-678', status: '審核通過', paid: true },
+    { id: '2', name: '飛鷹隊', contact: '李大華', phone: '0923-456-789', status: '審核通過', paid: true },
+    { id: '3', name: '閃電俠', contact: '張小龍', phone: '0934-567-890', status: '資料不全', paid: false },
+    { id: '4', name: '暴風雪', contact: '陳小美', phone: '0945-678-901', status: '候補中', paid: false },
+    { id: '5', name: '火焰鳥', contact: '林志強', phone: '0956-789-012', status: '待審核', paid: false },
   ],
   announcements: [
-    { id: 1, title: '賽程表已正式公佈，請各隊伍查閱', date: '2026-04-01', pinned: true, status: '已發布' },
-    { id: 2, title: '報名期限延長至 4/10', date: '2026-03-25', pinned: false, status: '已發布' },
-    { id: 3, title: '裁判會議紀錄', date: '2026-03-20', pinned: false, status: '草稿' },
+    { id: '1', title: '賽程表已正式公佈，請各隊伍查閱', content: '', date: '2026-04-01', pinned: true, status: '已發布' },
+    { id: '2', title: '報名期限延長至 4/10', content: '', date: '2026-03-25', pinned: false, status: '已發布' },
+    { id: '3', title: '裁判會議紀錄', content: '', date: '2026-03-20', pinned: false, status: '草稿' },
   ],
   currentUser: null,
   theme: 'dark',
   searchQuery: '',
+  isLoading: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -108,7 +106,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_SEARCH_QUERY':
       return { ...state, searchQuery: action.payload };
     case 'LOAD_FROM_STORAGE':
-      return state;
+      return { ...state, ...action.payload };
     default:
       return state;
   }
@@ -171,7 +169,7 @@ export function useEvents() {
   const { state, dispatch } = useContext(AppContext)!;
   
   const addEvent = useCallback((event: Omit<Event, 'id'>) => {
-    const newEvent = { ...event, id: Date.now() };
+    const newEvent = { ...event, id: String(Date.now()) };
     dispatch({ type: 'ADD_EVENT', payload: newEvent });
     return newEvent;
   }, [dispatch]);
@@ -180,7 +178,7 @@ export function useEvents() {
     dispatch({ type: 'UPDATE_EVENT', payload: event });
   }, [dispatch]);
 
-  const deleteEvent = useCallback((id: number) => {
+  const deleteEvent = useCallback((id: string) => {
     dispatch({ type: 'DELETE_EVENT', payload: id });
   }, [dispatch]);
 
@@ -191,7 +189,7 @@ export function useTeams() {
   const { state, dispatch } = useContext(AppContext)!;
   
   const addTeam = useCallback((team: Omit<Team, 'id'>) => {
-    const newTeam = { ...team, id: Date.now() };
+    const newTeam = { ...team, id: String(Date.now()) };
     dispatch({ type: 'ADD_TEAM', payload: newTeam });
     return newTeam;
   }, [dispatch]);
@@ -233,8 +231,8 @@ export function useSearch() {
 
     const results = [
       ...state.events
-        .filter(e => e.title.toLowerCase().includes(query))
-        .map(e => ({ type: 'event' as const, id: e.id, title: e.title, subtitle: e.organizer })),
+        .filter(e => e.name.toLowerCase().includes(query))
+        .map(e => ({ type: 'event' as const, id: e.id, title: e.name, subtitle: e.organizer })),
       ...state.teams
         .filter(t => t.name.toLowerCase().includes(query))
         .map(t => ({ type: 'team' as const, id: t.id, title: t.name, subtitle: t.contact })),
