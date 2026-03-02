@@ -30,8 +30,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
 };
 
-// 照妖鏡：用來確認有沒有讀取成功
-console.log("目前的 API KEY 是：", import.meta.env.VITE_FIREBASE_API_KEY);
+// 調試：確認環境變數是否讀取成功（只顯示前5個字符，保護安全）
+if (import.meta.env.DEV) {
+  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || '';
+  console.log("🔧 Firebase API Key 狀態:", apiKey ? `已載入 (${apiKey.substring(0, 5)}...)` : "未載入");
+}
 
 // 初始化 Firebase
 let app;
