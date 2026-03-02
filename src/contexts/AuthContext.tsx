@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase'; // 🌟 記得匯入 db
+import { auth, db, firebaseInitialized } from '@/lib/firebase'; // 🌟 記得匯入 db 和初始化狀態
 import { doc, getDoc } from 'firebase/firestore'; // 🌟 匯入 Firestore 方法
 
 interface AuthContextType {
@@ -18,9 +18,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 如果 Firebase 未初始化，直接結束 loading
-    if (!auth || typeof auth.onAuthStateChanged !== 'function') {
-      console.warn('⚠️ Firebase Auth 未初始化，跳過身份驗證監聽');
+    // 如果 Firebase 未初始化，顯示錯誤並結束 loading
+    if (!firebaseInitialized) {
+      console.error('❌ Firebase 未初始化，認證功能無法使用');
       setIsLoading(false);
       return;
     }

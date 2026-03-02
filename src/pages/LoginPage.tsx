@@ -10,7 +10,8 @@ import { useToast } from '@/hooks/useToast';
 
 // 引入 Firebase 驗證功能
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, firebaseInitialized } from '@/lib/firebase';
+import { AlertCircle } from 'lucide-react';
 
 export function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,6 +21,9 @@ export function LoginPage() {
   
   const navigate = useNavigate();
   const { addToast } = useToast();
+
+  // 檢查 Firebase 是否已初始化
+  const isFirebaseReady = firebaseInitialized;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +108,20 @@ export function LoginPage() {
         </div>
 
         <Card className="p-8 bg-slate-900/80 border-slate-800 backdrop-blur-xl shadow-2xl">
+          {!isFirebaseReady && (
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-red-400 font-medium text-sm">系統設定錯誤</h3>
+                  <p className="text-red-300/80 text-xs mt-1">
+                    Firebase 未正確初始化，登入功能暫時無法使用。<br/>
+                    請聯繫管理員檢查環境變數設定。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             <motion.div
               key={isLogin ? 'login' : 'register'}
@@ -169,7 +187,7 @@ export function LoginPage() {
                 <Button 
                   type="submit" 
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white h-11"
-                  disabled={isLoading}
+                  disabled={isLoading || !isFirebaseReady}
                 >
                   {isLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />

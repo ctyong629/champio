@@ -41,6 +41,7 @@ let app;
 let auth: any;
 let db: any;
 let storage: any;
+let firebaseInitialized = false;
 
 try {
   if (firebaseConfig.apiKey && firebaseConfig.projectId) {
@@ -48,17 +49,54 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
+    firebaseInitialized = true;
+    console.log('✅ Firebase 初始化成功');
   } else {
-    console.warn('⚠️ Firebase 未初始化：缺少必要配置');
-    auth = { currentUser: null, onAuthStateChanged: () => () => {} };
-    db = {};
-    storage = {};
+    const errorMsg = '❌ Firebase 未初始化：缺少必要環境變數。請確認已設定 .env.local 檔案（本地開發）或 GitHub Secrets（部署）';
+    console.error(errorMsg);
+    console.error('缺失變數:', missingVars.join(', '));
+    
+    // 創建一個會明確報錯的佔位對象，而不是靜默失敗
+    const throwError = () => { 
+      throw new Error('Firebase 未初始化，無法執行認證操作。請檢查環境變數設定。'); 
+    };
+    
+    auth = {
+      currentUser: null,
+      onAuthStateChanged: () => { 
+        console.error('⚠️ Firebase Auth 未初始化，監聽功能無法使用');
+        return () => {}; 
+      },
+      signInWithEmailAndPassword: throwError,
+      createUserWithEmailAndPassword: throwError,
+      signOut: throwError,
+      sendPasswordResetEmail: throwError,
+    };
+    
+    db = new Proxy({}, {
+      get: () => throwError
+    });
+    
+    storage = new Proxy({}, {
+      get: () => throwError
+    });
   }
 } catch (error) {
   console.error('❌ Firebase 初始化失敗:', error);
-  auth = { currentUser: null, onAuthStateChanged: () => () => {} };
-  db = {};
-  storage = {};
+  const throwError = () => { 
+    throw new Error('Firebase 初始化失敗: ' + (error as Error).message); 
+  };
+  
+  auth = {
+    currentUser: null,
+    onAuthStateChanged: () => () => {},
+    signInWithEmailAndPassword: throwError,
+    createUserWithEmailAndPassword: throwError,
+    signOut: throwError,
+    sendPasswordResetEmail: throwError,
+  };
+  db = new Proxy({}, { get: () => throwError });
+  storage = new Proxy({}, { get: () => throwError });
 }
 
-export { auth, db, storage };
+export { auth, db, storage, firebaseInitialized };
