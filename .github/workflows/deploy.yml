@@ -30,9 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build project
         run: npm run build
-        env: # 🌟 從 GitHub Secrets 讀取 Firebase 環境變數 (注意對齊 run)
+        env: # 🌟 這裡完美對齊，把 Secrets 餵給打包流程
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
