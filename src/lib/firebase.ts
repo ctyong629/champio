@@ -3,7 +3,7 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// 環境變數檢查
+// 環境變數檢查：確認 Vite 有沒有成功讀取到 .env.local
 const requiredEnvVars = [
   'VITE_FIREBASE_API_KEY',
   'VITE_FIREBASE_AUTH_DOMAIN', 
@@ -17,9 +17,10 @@ const missingVars = requiredEnvVars.filter(key => !import.meta.env[key]);
 
 if (missingVars.length > 0) {
   console.warn('⚠️ 缺少 Firebase 環境變數:', missingVars);
-  console.warn('請確認 .env 檔案已設定，或環境變數已正確配置');
+  console.warn('請確認 .env.local 檔案已設定，並且有重啟開發伺服器！');
 }
 
+// Firebase 核心配置 (這裡只呼叫變數名稱，不放真實金鑰)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -29,7 +30,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
 };
 
-// 初始化 Firebase（如果配置不完整會有警告但不會崩潰）
+// 照妖鏡：用來確認有沒有讀取成功
+console.log("目前的 API KEY 是：", import.meta.env.VITE_FIREBASE_API_KEY);
+
+// 初始化 Firebase
 let app;
 let auth: any;
 let db: any;
@@ -43,7 +47,6 @@ try {
     storage = getStorage(app);
   } else {
     console.warn('⚠️ Firebase 未初始化：缺少必要配置');
-    // 提供 mock 物件避免崩潰
     auth = { currentUser: null, onAuthStateChanged: () => () => {} };
     db = {};
     storage = {};
