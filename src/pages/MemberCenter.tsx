@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Trophy, Users, Calendar, CreditCard, Bell,
   TrendingUp, Edit3, Camera, Plus,
-  Phone, MapPin,  Loader2,  X, Trash2
+  Phone, MapPin,  Loader2,  X, Trash2,
+  MailCheck, MailWarning
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import { useToast } from '@/hooks/useToast';
 // 🌟 新增 uploadString 負責處理 Base64 圖片上傳
 import { doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
+import { sendEmailVerification } from 'firebase/auth';
 import { db, storage } from '@/lib/firebase';
 
 // ============================================
@@ -44,7 +46,31 @@ function OverviewTab({ stats }: { stats: typeof MOCK_STATS }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', location: '', bio: '' });
+
+  // 🌟 重新發送驗證郵件
+  const handleResendVerification = async () => {
+    if (!currentUser || currentUser.emailVerified) return;
+    setIsSendingVerification(true);
+    try {
+      await sendEmailVerification(currentUser);
+      addToast({ 
+        title: '驗證郵件已重新發送！', 
+        description: '請檢查您的信箱（包括垃圾郵件文件夾）',
+        variant: 'success' 
+      });
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/too-many-requests') {
+        addToast({ title: '請求過於頻繁，請稍後再試', variant: 'error' });
+      } else {
+        addToast({ title: '發送失敗，請稍後再試', variant: 'error' });
+      }
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -131,10 +157,47 @@ function OverviewTab({ stats }: { stats: typeof MOCK_STATS }) {
           </div>
           
           <div className="flex-1 min-w-0">
+            {/* 🌟 郵箱驗證狀態提示 */}
+            {currentUser && !currentUser.emailVerified && (
+              <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <MailWarning className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                    <span className="text-yellow-400 text-sm">您的郵箱尚未驗證</span>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleResendVerification}
+                    disabled={isSendingVerification}
+                    className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 h-7 text-xs"
+                  >
+                    {isSendingVerification ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      '重新發送'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-yellow-400/70 text-xs mt-1 ml-7">請檢查您的垃圾郵件文件夾</p>
+              </div>
+            )}
+            
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-bold text-white truncate">{profile.name}</h3>
-                <p className="text-slate-400 truncate">{currentUser?.email}</p>
+                <p className="text-slate-400 truncate flex items-center gap-2">
+                  {currentUser?.email}
+                  {currentUser?.emailVerified ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-400 text-xs bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      <MailCheck className="w-3 h-3" /> 已驗證
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-yellow-400 text-xs bg-yellow-500/10 px-2 py-0.5 rounded-full">
+                      <MailWarning className="w-3 h-3" /> 未驗證
+                    </span>
+                  )}
+                </p>
               </div>
               <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="border-slate-700 text-slate-300">
                 <Edit3 className="w-4 h-4 mr-1" /> 編輯
