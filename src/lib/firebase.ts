@@ -20,14 +20,15 @@ if (missingVars.length > 0) {
   console.warn('請確認 .env.local 檔案已設定，並且有重啟開發伺服器！');
 }
 
-// Firebase 核心配置 (這裡只呼叫變數名稱，不放真實金鑰)
+// Firebase 核心配置
+// 注意：這是臨時硬編碼配置，僅用於測試。生產環境應使用環境變數
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
+  apiKey: 'AIzaSyBgcUHw7wBaRk9n-Uk4PoNr4C7AG8VIuxg',
+  authDomain: 'champio-325a8.firebaseapp.com',
+  projectId: 'champio-325a8',
+  storageBucket: 'champio-325a8.firebasestorage.app',
+  messagingSenderId: '250634726028',
+  appId: '1:250634726028:web:507ea35e119a3861c9e9a9'
 };
 
 // 調試：確認環境變數是否讀取成功（只顯示前5個字符，保護安全）
