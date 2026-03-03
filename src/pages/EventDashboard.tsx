@@ -6,7 +6,7 @@ import {
   Hash, Mail, Phone, Calendar as CalendarIcon, 
   GripVertical, Settings, Trash2, Save, Send, Loader2,
   CheckCircle2, XCircle, Search, Edit2, X,
-  AlignLeft, ListCollapse, CheckSquare, UploadCloud // 🌟 新增的進階表單圖示
+  AlignLeft, ListCollapse, CheckSquare, UploadCloud
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,6 +17,10 @@ import type { RouteType } from '@/types';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+
+// 🌟 引入你的超強賽程表元件 
+// (注意：如果你的 TournamentBracket 放在 pages 資料夾，請把 @/components 改成 @/pages)
+import { TournamentBracket } from '@/components/TournamentBracket';
 
 // ============================================
 // 子組件：總覽儀表板 (Overview)
@@ -94,26 +98,22 @@ function AnnouncementTab() {
 }
 
 // ============================================
-// 🌟 史詩級升級：表單建構器 (Form Builder)
+// 子組件：表單建構器 (Form Builder)
 // ============================================
-
-// 擴充自訂欄位型別，加入 options 屬性以支援選單
 interface ExtendedFormField {
   id: string;
   type: string;
   label: string;
   required: boolean;
-  options?: string[]; // 供單選、多選、下拉選單使用
+  options?: string[];
 }
 
 const FIELD_TYPES = [
-  // 基礎欄位
   { type: 'text', label: '短文字輸入', desc: '姓名、隊伍名等', icon: Type },
   { type: 'number', label: '數字欄位', desc: '球衣號碼、身高', icon: Hash },
   { type: 'email', label: '電子信箱', desc: '聯絡 Email', icon: Mail },
   { type: 'tel', label: '電話號碼', desc: '聯絡手機', icon: Phone },
   { type: 'date', label: '日期選擇', desc: '出生年月日', icon: CalendarIcon },
-  // 進階欄位
   { type: 'textarea', label: '多行文字', desc: '經歷、備註說明', icon: AlignLeft },
   { type: 'select', label: '下拉選單', desc: '尺寸、組別選擇', icon: ListCollapse },
   { type: 'radio', label: '單選按鈕', desc: '是/否、葷/素等', icon: CheckCircle2 },
@@ -134,7 +134,7 @@ function FormBuilderTab({ event, refreshEvent }: { event: any, refreshEvent: () 
       type, 
       label, 
       required: true,
-      ...(needsOptions ? { options: ['選項 1', '選項 2'] } : {}) // 如果是選單類型，預設給兩個選項
+      ...(needsOptions ? { options: ['選項 1', '選項 2'] } : {})
     };
     setFields([...fields, newField]);
     setActiveFieldId(newField.id);
@@ -176,7 +176,7 @@ function FormBuilderTab({ event, refreshEvent }: { event: any, refreshEvent: () 
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 bg-slate-900 p-4 rounded-xl border border-slate-800 flex-1 overflow-hidden">
         
-        {/* 左側：欄位庫 (分成基礎與進階) */}
+        {/* 左側：欄位庫 */}
         <div className="md:col-span-3 border-r border-slate-800 pr-4 overflow-y-auto pb-8">
           <p className="font-bold text-white mb-4 flex items-center gap-2"><Plus className="w-4 h-4 text-orange-500"/> 新增欄位</p>
           <div className="space-y-2">
@@ -204,7 +204,6 @@ function FormBuilderTab({ event, refreshEvent }: { event: any, refreshEvent: () 
                 <GripVertical className="w-5 h-5 text-slate-600" />
                 <div className="flex-1">
                   <p className="text-white text-sm font-bold flex items-center gap-2">
-                    {/* 動態顯示對應的 Icon */}
                     {FIELD_TYPES.find(t => t.type === f.type)?.icon && React.createElement(FIELD_TYPES.find(t => t.type === f.type)!.icon, { className: "w-4 h-4 text-orange-400" })}
                     {f.label} {f.required && <span className="text-red-500">*</span>}
                   </p>
@@ -233,7 +232,6 @@ function FormBuilderTab({ event, refreshEvent }: { event: any, refreshEvent: () 
                 </button>
               </div>
 
-              {/* 🌟 只有多選/單選/下拉 才顯示「選項設定」 */}
               {['select', 'radio', 'checkbox'].includes(activeField.type) && (
                 <div className="space-y-3 pt-4 border-t border-slate-800">
                   <label className="text-xs text-slate-400 block mb-2">編輯選項內容</label>
@@ -265,13 +263,11 @@ function FormBuilderTab({ event, refreshEvent }: { event: any, refreshEvent: () 
                 </div>
               )}
               
-              {/* 如果是圖片上傳，顯示提示 */}
               {activeField.type === 'file' && (
                 <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                   <p className="text-xs text-blue-300">此欄位允許參賽者上傳圖片或 PDF 檔案。檔案將安全儲存於雲端空間，主辦方可於後台直接預覽或下載。</p>
                 </div>
               )}
-
             </div>
           ) : <div className="text-center mt-20 text-slate-600 text-sm">點擊中間的欄位來編輯屬性</div>}
         </div>
@@ -281,7 +277,7 @@ function FormBuilderTab({ event, refreshEvent }: { event: any, refreshEvent: () 
 }
 
 // ============================================
-// 子組件：報名管理 (真實串接 Firebase)
+// 子組件：報名管理 (Registration)
 // ============================================
 function RegistrationTab({ event }: { event: any }) {
   const { addToast } = useToast();
@@ -289,7 +285,6 @@ function RegistrationTab({ event }: { event: any }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 1. 抓取該賽事的所有報名資料
   useEffect(() => {
     const fetchRegistrations = async () => {
       if (!event?.id) return;
@@ -308,7 +303,6 @@ function RegistrationTab({ event }: { event: any }) {
     fetchRegistrations();
   }, [event]);
 
-  // 2. 更新核准 / 退回 狀態至 Firebase
   const updateStatus = async (id: string, status: string) => {
     try {
       await updateDoc(doc(db, 'registrations', id), { status });
@@ -319,7 +313,6 @@ function RegistrationTab({ event }: { event: any }) {
     }
   };
 
-  // 3. 更新繳費狀態至 Firebase
   const togglePayment = async (id: string, currentPaid: boolean) => {
     try {
       await updateDoc(doc(db, 'registrations', id), { paid: !currentPaid });
@@ -379,7 +372,6 @@ function RegistrationTab({ event }: { event: any }) {
                 <tr key={reg.id} className="hover:bg-slate-800/20 transition-colors">
                   <td className="p-4 font-bold text-white">{reg.teamName}</td>
                   
-                  {/* 🌟 動態顯示球員填寫的自訂表單答案，如果答案是圖片網址，轉換成可點擊的連結 */}
                   <td className="p-4 text-slate-300 text-xs">
                     {reg.customAnswers && Object.keys(reg.customAnswers).length > 0 ? (
                       <div className="space-y-1.5">
@@ -388,7 +380,6 @@ function RegistrationTab({ event }: { event: any }) {
                           const label = fieldConfig ? fieldConfig.label : fieldId;
                           const answerStr = String(answer);
                           
-                          // 判斷是否為檔案網址 (通常 Firebase Storage 的網址包含 firebasestorage)
                           const isFileUrl = answerStr.startsWith('http') && answerStr.includes('firebasestorage');
 
                           return (
@@ -442,197 +433,54 @@ function RegistrationTab({ event }: { event: any }) {
 }
 
 // ============================================
-// 子組件：互動式賽程樹狀圖 (Interactive Bracket)
+// 子組件：互動式賽程樹狀圖 (串接真實資料版)
 // ============================================
-function BracketTab() {
-  const { addToast } = useToast();
-  const [selectedMatch, setSelectedMatch] = useState<any>(null);
-  const [score1Input, setScore1Input] = useState('');
-  const [score2Input, setScore2Input] = useState('');
+function BracketTab({ event }: { event: any }) {
+  const [teams, setTeams] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  type MatchType = { id: number; team1: string; score1: number | null; team2: string; score2: number | null; winner: 1 | 2 | null; };
-  type StageType = { round: string; matches: MatchType[]; };
+  useEffect(() => {
+    const fetchTeams = async () => {
+      if (!event?.id) return;
+      try {
+        // 🌟 只抓取該賽事「已審核通過 (approved)」的報名隊伍
+        const q = query(
+          collection(db, 'registrations'),
+          where('eventId', '==', event.id),
+          where('status', '==', 'approved')
+        );
+        const snap = await getDocs(q);
+        
+        // 把撈回來的資料轉換成純文字的隊伍名稱陣列
+        const teamNames = snap.docs.map(doc => doc.data().teamName);
 
-  const [bracket, setBracket] = useState<StageType[]>([
-    {
-      round: '八強賽',
-      matches: [
-        { id: 1, team1: '台大戰神', score1: null, team2: '政大黑熊', score2: null, winner: null },
-        { id: 2, team1: '師大飛鷹', score1: null, team2: '輔大雄獅', score2: null, winner: null },
-        { id: 3, team1: '交大狂虎', score1: null, team2: '清大野狼', score2: null, winner: null },
-        { id: 4, team1: '成大水手', score1: null, team2: '中央騎士', score2: null, winner: null },
-      ]
-    },
-    {
-      round: '四強賽',
-      matches: [
-        { id: 5, team1: 'TBD', score1: null, team2: 'TBD', score2: null, winner: null },
-        { id: 6, team1: 'TBD', score1: null, team2: 'TBD', score2: null, winner: null },
-      ]
-    },
-    {
-      round: '冠軍賽',
-      matches: [
-        { id: 7, team1: 'TBD', score1: null, team2: 'TBD', score2: null, winner: null },
-      ]
-    }
-  ]);
-
-  const openScoreModal = (roundIndex: number, matchIndex: number, match: any) => {
-    if (match.team1 === 'TBD' || match.team2 === 'TBD') return;
-    setSelectedMatch({ roundIndex, matchIndex, ...match });
-    setScore1Input(match.score1?.toString() || '');
-    setScore2Input(match.score2?.toString() || '');
-  };
-
-  const handleScoreSubmit = () => {
-    if (!selectedMatch) return;
-    const { roundIndex, matchIndex } = selectedMatch;
-    const s1 = parseInt(score1Input);
-    const s2 = parseInt(score2Input);
-
-    if (isNaN(s1) || isNaN(s2) || s1 === s2) {
-      addToast({ title: '請輸入有效且不平手的比分', variant: 'warning' });
-      return;
-    }
-
-    const newBracket = [...bracket];
-    const match = newBracket[roundIndex].matches[matchIndex];
-    match.score1 = s1;
-    match.score2 = s2;
-    match.winner = s1 > s2 ? 1 : 2;
-
-    if (roundIndex < newBracket.length - 1) {
-      const nextRound = newBracket[roundIndex + 1];
-      const nextMatchIndex = Math.floor(matchIndex / 2);
-      const isTeam1 = matchIndex % 2 === 0;
-      const advancingTeam = match.winner === 1 ? match.team1 : match.team2;
-
-      if (isTeam1) {
-        nextRound.matches[nextMatchIndex].team1 = advancingTeam;
-      } else {
-        nextRound.matches[nextMatchIndex].team2 = advancingTeam;
+        // 如果目前報名通過的隊伍少於 2 隊，塞入預設文字避免畫面太空
+        if (teamNames.length < 2) {
+          setTeams(['等待隊伍加入...', '等待隊伍加入...']);
+        } else {
+          setTeams(teamNames);
+        }
+      } catch (error) {
+        console.error("載入隊伍失敗", error);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+    fetchTeams();
+  }, [event]);
 
-    setBracket(newBracket);
-    setSelectedMatch(null);
-    addToast({ title: '比分已更新，隊伍成功晉級！', variant: 'success' });
-  };
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 h-full flex flex-col relative">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-orange-500" /> 賽程樹狀圖
-          </h2>
-          <p className="text-sm text-slate-400">點擊卡片輸入比分，系統將自動晉級獲勝隊伍</p>
-        </div>
-      </div>
-
-      <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-8 overflow-x-auto">
-        <div className="flex gap-16 min-w-max h-full">
-          {bracket.map((stage, roundIndex) => (
-            <div key={roundIndex} className="flex flex-col w-64 shrink-0">
-              <h3 className="text-center text-sm font-black tracking-widest text-slate-500 uppercase mb-8">{stage.round}</h3>
-              <div className="flex-1 flex flex-col justify-around relative">
-                {stage.matches.map((match, matchIndex) => (
-                  <div key={match.id} className="relative group">
-                    {roundIndex < bracket.length - 1 && <div className="absolute top-1/2 -right-8 w-8 h-[2px] bg-slate-700" />}
-                    {roundIndex > 0 && <div className="absolute top-1/2 -left-8 w-8 h-[2px] bg-slate-700" />}
-                    {roundIndex < bracket.length - 1 && matchIndex % 2 === 0 && <div className="absolute top-1/2 -right-8 w-[2px] h-[calc(50%+2rem)] bg-slate-700" />}
-                    {roundIndex < bracket.length - 1 && matchIndex % 2 === 1 && <div className="absolute bottom-1/2 -right-8 w-[2px] h-[calc(50%+2rem)] bg-slate-700" />}
-
-                    <div 
-                      onClick={() => openScoreModal(roundIndex, matchIndex, match)}
-                      className={`relative z-10 rounded-lg overflow-hidden border transition-all duration-300 shadow-lg cursor-pointer
-                      ${match.winner ? 'border-slate-700 bg-slate-950' : 'border-slate-800 bg-slate-900/50 hover:border-orange-500 hover:shadow-[0_0_15px_rgba(249,115,22,0.2)]'}
-                      ${roundIndex === bracket.length - 1 ? 'border-orange-500/50' : ''}
-                    `}>
-                      <div className={`flex justify-between items-center px-4 py-3 border-b border-slate-800/50 ${match.winner === 1 ? 'bg-orange-500/10' : ''}`}>
-                        <span className={`text-sm font-bold ${match.winner === 1 ? 'text-orange-400' : 'text-slate-300'}`}>{match.team1}</span>
-                        <span className={`text-lg font-black ${match.winner === 1 ? 'text-orange-400' : 'text-slate-500'}`}>{match.score1 ?? '-'}</span>
-                      </div>
-                      <div className={`flex justify-between items-center px-4 py-3 ${match.winner === 2 ? 'bg-orange-500/10' : ''}`}>
-                        <span className={`text-sm font-bold ${match.winner === 2 ? 'text-orange-400' : 'text-slate-300'}`}>{match.team2}</span>
-                        <span className={`text-lg font-black ${match.winner === 2 ? 'text-orange-400' : 'text-slate-500'}`}>{match.score2 ?? '-'}</span>
-                      </div>
-                      
-                      {match.team1 !== 'TBD' && match.team2 !== 'TBD' && !match.winner && (
-                        <div className="absolute inset-0 bg-orange-500/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity font-bold">
-                          <Edit2 className="w-4 h-4 mr-2" /> 輸入比分
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          
-          <div className="flex flex-col w-32 shrink-0 justify-center items-center pl-8">
-            <div className={`w-24 h-24 rounded-full p-1 transition-all duration-1000 ${bracket[2].matches[0].winner ? 'bg-gradient-to-tr from-orange-600 to-yellow-400 shadow-[0_0_40px_rgba(249,115,22,0.6)] scale-110' : 'bg-slate-800 grayscale'}`}>
-              <div className="w-full h-full rounded-full bg-slate-950 flex flex-col items-center justify-center">
-                <Trophy className={`w-8 h-8 mb-1 ${bracket[2].matches[0].winner ? 'text-yellow-500' : 'text-slate-600'}`} />
-                <span className={`text-[10px] font-bold tracking-widest ${bracket[2].matches[0].winner ? 'text-yellow-500' : 'text-slate-600'}`}>CHAMPION</span>
-              </div>
-            </div>
-            {bracket[2].matches[0].winner && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 text-center">
-                <p className="text-orange-400 font-black text-xl">
-                  {bracket[2].matches[0].winner === 1 ? bracket[2].matches[0].team1 : bracket[2].matches[0].team2}
-                </p>
-              </motion.div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {selectedMatch && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setSelectedMatch(null)} />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-2xl w-96 z-10">
-              <button onClick={() => setSelectedMatch(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
-              <h3 className="text-lg font-bold text-white mb-6 text-center">記錄比賽結果</h3>
-              
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-sm font-bold text-white">{selectedMatch.team1}</span>
-                  <input type="number" value={score1Input} onChange={(e) => setScore1Input(e.target.value)} className="w-20 h-16 text-center text-2xl font-black bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-orange-500 focus:outline-none" placeholder="0" autoFocus />
-                </div>
-                <span className="text-slate-500 font-black text-xl">VS</span>
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-sm font-bold text-white">{selectedMatch.team2}</span>
-                  <input type="number" value={score2Input} onChange={(e) => setScore2Input(e.target.value)} className="w-20 h-16 text-center text-2xl font-black bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-orange-500 focus:outline-none" placeholder="0" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {/* 🌟 記錄台入口：點擊後在新分頁打開 /scorekeeper */}
-                <Button 
-                  variant="outline" 
-                  className="w-full border-blue-500/50 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400 h-12 text-md font-bold tracking-wide"
-                  onClick={() => window.open('/scorekeeper', '_blank')}
-                >
-                  📡 啟動即時記錄台 (另開視窗)
-                </Button>
-                
-                <div className="flex items-center gap-4 my-2">
-                  <div className="h-px bg-slate-800 flex-1" />
-                  <span className="text-xs text-slate-500">或</span>
-                  <div className="h-px bg-slate-800 flex-1" />
-                </div>
-
-                <Button className="w-full bg-orange-500 hover:bg-orange-600 text-lg font-bold h-12" onClick={handleScoreSubmit}>
-                  手動輸入並晉級
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+    <div className="h-[calc(100vh-120px)] w-full relative">
+      {/* 🌟 召喚你的超強元件，並把真實的隊伍名單餵給它！ */}
+      <TournamentBracket teams={teams} bracketType="single" />
     </div>
   );
 }
@@ -725,11 +573,11 @@ export function EventDashboard({ setRoute }: { setRoute: (route: RouteType) => v
             className="h-full"
           >
             {activeTab === 'overview' && <OverviewTab event={currentEvent} />}
-            {/* 🌟 傳入 event 讓報名管理能抓取該賽事的名單 */}
             {activeTab === 'registration' && <RegistrationTab event={currentEvent} />}
             {activeTab === 'announcement' && <AnnouncementTab />}
             {activeTab === 'form' && <FormBuilderTab event={currentEvent} refreshEvent={fetchMyEvent} />}
-            {activeTab === 'bracket' && <BracketTab />}
+            {/* 🌟 修改此處，將 event 傳入 BracketTab */}
+            {activeTab === 'bracket' && <BracketTab event={currentEvent} />}
             
             {['schedule', 'draw', 'ranking'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
