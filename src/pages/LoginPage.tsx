@@ -9,8 +9,9 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/useToast';
 
 // 引入 Firebase 驗證功能
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth, firebaseInitialized } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
+import { auth, db, firebaseInitialized } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { AlertCircle } from 'lucide-react';
 
 export function LoginPage() {
@@ -36,8 +37,25 @@ export function LoginPage() {
         addToast({ title: '登入成功！歡迎回來。', variant: 'success' });
       } else {
         // 執行 Firebase 註冊
-        await createUserWithEmailAndPassword(auth, email, password);
-        addToast({ title: '註冊成功！已為您建立帳號。', variant: 'success' });
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // 🌟 在 Firestore 創建用戶資料
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          email: email,
+          role: 'captain', // 預設角色為隊長
+          createdAt: new Date().toISOString(),
+          displayName: '',
+          teamName: ''
+        });
+        
+        // 🌟 發送驗證郵件（可選）
+        await sendEmailVerification(userCredential.user);
+        
+        addToast({ 
+          title: '註冊成功！', 
+          description: '已發送驗證郵件到您的信箱，請查收。', 
+          variant: 'success' 
+        });
       }
       
       // 成功後跳轉到會員中心
